@@ -1,5 +1,13 @@
 # livekit-agents
 
+## 0.11.4
+
+### Patch Changes
+
+- feat: tts retry & tts.FallbackAdapter - [#1074](https://github.com/livekit/agents/pull/1074) ([@theomonnom](https://github.com/theomonnom))
+
+- Expose multimodal agent metrics - [#1080](https://github.com/livekit/agents/pull/1080) ([@longcw](https://github.com/longcw))
+
 ## 0.11.3
 
 ### Patch Changes
