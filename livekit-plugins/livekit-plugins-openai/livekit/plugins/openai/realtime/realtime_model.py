@@ -911,42 +911,46 @@ class RealtimeSession(utils.EventEmitter[EventTypes]):
 
     @utils.log_exceptions(logger=logger)
     async def _main_task(self) -> None:
-        try:
-            headers = {"User-Agent": "LiveKit Agents"}
-            query_params: dict[str, str] = {}
+        headers = {"User-Agent": "LiveKit Agents"}
+        query_params: dict[str, str] = {}
 
-            base_url = self._opts.base_url
-            if self._opts.is_azure:
-                if self._opts.entra_token:
-                    headers["Authorization"] = f"Bearer {self._opts.entra_token}"
+        base_url = self._opts.base_url
+        if self._opts.is_azure:
+            if self._opts.entra_token:
+                headers["Authorization"] = f"Bearer {self._opts.entra_token}"
 
-                if self._opts.api_key:
-                    headers["api-key"] = self._opts.api_key
+            if self._opts.api_key:
+                headers["api-key"] = self._opts.api_key
 
-                if self._opts.api_version:
-                    query_params["api-version"] = self._opts.api_version
+            if self._opts.api_version:
+                query_params["api-version"] = self._opts.api_version
 
-                if self._opts.azure_deployment:
-                    query_params["deployment"] = self._opts.azure_deployment
-            else:
-                # OAI endpoint
-                headers["Authorization"] = f"Bearer {self._opts.api_key}"
-                headers["OpenAI-Beta"] = "realtime=v1"
+            if self._opts.azure_deployment:
+                query_params["deployment"] = self._opts.azure_deployment
+        else:
+            # OAI endpoint
+            headers["Authorization"] = f"Bearer {self._opts.api_key}"
+            headers["OpenAI-Beta"] = "realtime=v1"
 
-                if self._opts.model:
-                    query_params["model"] = self._opts.model
+            if self._opts.model:
+                query_params["model"] = self._opts.model
 
-            url = f"{base_url.rstrip('/')}/realtime?{urlencode(query_params)}"
-            if url.startswith("http"):
-                url = url.replace("http", "ws", 1)
+        url = f"{base_url.rstrip('/')}/realtime?{urlencode(query_params)}"
+        if url.startswith("http"):
+            url = url.replace("http", "ws", 1)
 
-            ws_conn = await self._http_session.ws_connect(
-                url,
-                headers=headers,
-            )
-        except Exception:
-            logger.exception("failed to connect to OpenAI API S2S")
-            return
+        max_retries = int(os.getenv("OPENAI_REALTIME_MAX_RETRIES", 3))
+        for attempt in range(max_retries):
+            logger.info(f"Connecting to {url} (attempt {attempt + 1}/{max_retries})")
+            try:
+                ws_conn = await self._http_session.ws_connect(url, headers=headers)
+                break
+            except Exception:
+                if attempt < max_retries - 1:
+                     await asyncio.sleep(2 ** (attempt + 1))
+                else:
+                    logger.exception(f"failed to connect to OpenAI API S2S after {max_retries} attempts.")
+                    return
 
         closing = False
 
